@@ -30,7 +30,7 @@ class TransaksiPenjualanController extends Controller
     }
 
     /**
-     * CREATE (ACTION): Menyimpan transaksi baru ke database.
+     * CREATE (ACTION): Menyimpan tranccsaksi baru ke database.
      */
     public function store(Request $request)
     {
