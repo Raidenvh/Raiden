@@ -146,6 +146,12 @@
         <a href="{{ url('/transaksi') }}" class="{{ request()->is('transaksi*') ? 'active' : '' }}">
             <i class="bi bi-cash-stack"></i> Transaksi
         </a>
+        <form action="{{ route('logout') }}" method="POST" >
+            @csrf
+            <button type="submit" class="droopdown-item text-danger">
+                <i class="bi bi-box-arrow-right"></i> Logout
+            </button>
+        </form>
     </div>
 
     <!-- KONTEN -->

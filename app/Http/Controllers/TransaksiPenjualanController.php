@@ -6,6 +6,7 @@ use App\Models\TransaksiPenjualan;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 
 class TransaksiPenjualanController extends Controller
 {
@@ -67,6 +68,29 @@ class TransaksiPenjualanController extends Controller
                 'subtotal' => $subtotal,
             ];
         }
+             $transaksi = DB::transaction(function () use ($request, $grandTotal, $itemsToProcess) {
+
+            $transaksi = TransaksiPenjualan::create([
+                'nama_kasir' => $request->nama_kasir,
+                'email_pembeli' => $request->email_pembeli,
+                'total_harga' => $grandTotal,
+            ]);
+
+            foreach ($itemsToProcess as $item) {
+                $transaksi->details()->create([
+                    'id_product' => $item['product']->id,
+                    'jumlah_pembelian' => $item['jumlah'],
+                    'harga_saat_transaksi' => $item['harga_saat_transaksi'],
+                    'subtotal' => $item['subtotal'],
+                ]);
+
+                $item['product']->decrement('stock', $item['jumlah']);
+            }
+
+            return $transaksi;
+        });
+
+     
 
         try {
             DB::transaction(function () use ($request, $grandTotal, $itemsToProcess) {
@@ -90,6 +114,7 @@ class TransaksiPenjualanController extends Controller
                     $item['product']->decrement('stock', $item['jumlah']);
                 }
             });
+            $this->sendEmail($request->email_pembeli, $transaksi->id);
 
             return redirect()->route('transaksi.index')->with('success', 'Transaksi berhasil dibuat.');
 
@@ -133,7 +158,7 @@ class TransaksiPenjualanController extends Controller
         ]);
 
         $transaksi->update($request->only(['nama_kasir', 'email_pembeli']));
-
+        $this->sendEmail($request->email_pembeli, $transaksi->id);  
         return redirect()->route('transaksi.index')->with('success', 'Data kasir berhasil diupdate.');
     }
 
@@ -151,4 +176,35 @@ class TransaksiPenjualanController extends Controller
         
         return redirect()->route('transaksi.index')->with('success', 'Transaksi berhasil dihapus.');
     }
+public function sendEmail($to, $id)
+{
+    // Get transaksi by ID
+    $transaksi_penjualan = new \App\Models\TransaksiPenjualan;
+    $transaksi = $transaksi_penjualan
+        ->where("transaksi_penjualan.id", $id)
+        ->first();
+
+   $total_harga['transaksi'] = 0;
+if ($transaksi->details) {
+    foreach ($transaksi->details as $detail) {
+        $total_harga['transaksi'] += ($detail->product->price ?? 0) * ($detail->jumlah_pembelian ?? 0);
+    
+}
+
+    }
+
+    $transaksi_ = [
+        'transaksi' => $transaksi,
+        'total_harga' => $total_harga
+    ];
+
+    // Mengirim email
+    Mail::send('sendmail.show', $transaksi_, function ($message) use ($to, $transaksi, $total_harga) {
+        $message->to($to)
+            ->subject("Transaksi Details: " . ($transaksi->first()->email_pembeli ?? 'Tidak Ada Email') . " - dengan Total tagihan RP " 
+            . number_format($total_harga['transaksi'], 2, ',', '.') . ".");
+    });
+
+    return response()->json(['message' => 'Email sent successfully!']);
+}
 }
